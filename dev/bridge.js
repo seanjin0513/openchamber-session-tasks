@@ -2,6 +2,7 @@ const frame = document.querySelector('iframe');
 const scenario = document.querySelector('#scenario');
 const theme = document.querySelector('#theme');
 const envelope = { channel: 'openchamber.sdk', v: 1 };
+let companionInstalled = false;
 const tasks = [
   { id: 'scope', text: '确认当前会话的数据来源', status: 'completed' },
   { id: 'panel', text: '实现任务面板与完成比例', status: 'completed' },
@@ -10,7 +11,7 @@ const tasks = [
   { id: 'docs', text: '补全安装与卸载说明', status: 'pending' },
   { id: 'history', text: '增加跨会话历史看板', status: 'cancelled' },
 ];
-function send(type, payload, extra = {}) { frame.contentWindow.postMessage({ ...envelope, type, payload, ...extra }, location.origin); }
+function send(type, payload, extra = {}) { frame.contentWindow.postMessage({ ...envelope, type, payload, ...extra }, '*'); }
 function ready() {
   const dark = theme.value === 'dark';
   document.body.classList.toggle('dark', dark);
@@ -29,6 +30,16 @@ window.addEventListener('message', ({ source, data }) => {
   if (source !== frame.contentWindow || data?.channel !== envelope.channel) return;
   if (data.type === 'hello') return ready();
   if (data.type !== 'service-request') return;
+  if (data.payload.path.startsWith('/companion')) {
+    const path = '/Users/example/.config/opencode/plugins/openchamber-session-tasks';
+    let status = 200;
+    if (data.payload.method === 'POST') {
+      if (scenario.value === 'error') status = 500;
+      else companionInstalled = true;
+    }
+    send('result', { status, body: JSON.stringify({ state: companionInstalled ? 'installed' : 'not_installed', path }) }, { id: data.id, ok: true });
+    return;
+  }
   const id = data.payload.query.sessionId;
   let report = null;
   if (id !== 'demo_empty') report = {
@@ -39,5 +50,5 @@ window.addEventListener('message', ({ source, data }) => {
   // Delayed first-session answers exercise rapid session switching.
   setTimeout(() => send('result', { status, body: JSON.stringify({ report }) }, { id: data.id, ok: true }), id === 'demo_sample' ? 180 : 0);
 });
-scenario.addEventListener('change', ready);
+scenario.addEventListener('change', () => { companionInstalled = false; ready(); });
 theme.addEventListener('change', ready);

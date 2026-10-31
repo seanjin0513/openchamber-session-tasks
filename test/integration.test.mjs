@@ -36,7 +36,7 @@ test('companion installer preserves config and refuses unknown files', async () 
 
 test('reporter binds to authentic session and service is authenticated/read-only', async () => {
   const home = await mkdtemp(join(tmpdir(), 'session-tasks-integration-'));
-  const env = { ...process.env, HOME: home };
+  const env = { ...process.env, HOME: home, XDG_CONFIG_HOME: join(home, '.config') };
   const companion = new URL('../companion/index.js', import.meta.url).href;
   let child;
   try {
@@ -71,6 +71,22 @@ test('reporter binds to authentic session and service is authenticated/read-only
     assert.equal(ready, true, serviceError);
     assert.equal((await fetch(`${base}/health`)).status, 401);
     const options = { headers: { Authorization: `Bearer ${token}` } };
+    assert.equal((await fetch(`${base}/companion`)).status, 401);
+    const initial = await (await fetch(`${base}/companion`, options)).json();
+    assert.equal(initial.state, 'not_installed');
+    assert.ok(initial.path.startsWith(home));
+    const post = (body) => fetch(`${base}/companion/install`, { method: 'POST', headers: { ...options.headers, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    assert.equal((await post({})).status, 400);
+    assert.equal((await post({ confirmed: true, path: '/unexpected' })).status, 400);
+    assert.equal((await (await fetch(`${base}/companion`, options)).json()).state, 'not_installed');
+    assert.equal((await post(null)).status, 400);
+    assert.equal((await post({ confirmed: true })).status, 400);
+    assert.equal((await post({ confirmed: true, path: initial.path })).status, 200);
+    assert.equal((await (await fetch(`${base}/companion`, options)).json()).state, 'installed');
+    assert.equal((await post({ confirmed: true, path: initial.path })).status, 200);
+    await writeFile(join(initial.path, 'user-work.txt'), 'preserve me');
+    assert.equal((await post({ confirmed: true, path: initial.path })).status, 409);
+    assert.equal(await readFile(join(initial.path, 'user-work.txt'), 'utf8'), 'preserve me');
     const stored = await (await fetch(`${base}/tasks?sessionId=ses_authentic`, options)).json();
     assert.equal(stored.report.tasks[0].status, 'completed');
     assert.equal((await (await fetch(`${base}/tasks?sessionId=ses_spoofed`, options)).json()).report, null);

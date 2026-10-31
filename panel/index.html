@@ -10,9 +10,18 @@
   <main>
     <header>
       <div class="heading"><h1>会话任务</h1><span id="activity" class="muted"></span></div>
-      <button id="refresh" title="刷新任务" aria-label="刷新任务"><i data-lucide="refresh-cw"></i></button>
+      <button id="refresh" title="刷新任务和安装状态" aria-label="刷新任务和安装状态"><i data-lucide="refresh-cw"></i></button>
     </header>
     <p id="session" class="session muted"></p>
+    <section id="setup" aria-label="上报组件">
+      <div class="setup-line"><span id="companion-state" role="status" class="muted">正在检查上报组件…</span><button id="install" class="install" type="button" hidden><span id="install-label">安装上报组件</span></button></div>
+      <div id="install-confirm" hidden>
+        <p>确认写入以下 OpenCode 插件目录？</p>
+        <code id="install-path"></code>
+        <p class="muted">仅安装此扩展的上报组件，不修改其他插件或配置。</p>
+        <div class="confirm-actions"><button id="confirm-install" type="button">确认安装</button><button id="cancel-install" type="button">取消</button></div>
+      </div>
+    </section>
     <section id="summary" hidden>
       <div class="totals"><strong id="title"></strong><span id="count"></span></div>
       <div id="progress" role="progressbar" aria-label="任务完成度" aria-valuemin="0" aria-valuemax="100"><div id="bar"></div></div>

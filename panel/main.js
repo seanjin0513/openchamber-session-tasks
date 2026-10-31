@@ -1832,6 +1832,17 @@ ${GUEST_UI_LOOK_CSS}`;
   // node_modules/lucide/dist/esm/icons/circle.js
   var Circle = ["svg", defaultAttributes, [["circle", { cx: "12", cy: "12", r: "10" }]]];
 
+  // node_modules/lucide/dist/esm/icons/download.js
+  var Download = [
+    "svg",
+    defaultAttributes,
+    [
+      ["path", { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }],
+      ["polyline", { points: "7 10 12 15 17 10" }],
+      ["line", { x1: "12", x2: "12", y1: "15", y2: "3" }]
+    ]
+  ];
+
   // node_modules/lucide/dist/esm/icons/refresh-cw.js
   var RefreshCw = [
     "svg",
@@ -1889,6 +1900,10 @@ ${GUEST_UI_LOOK_CSS}`;
   var element = (id) => document.getElementById(id);
   var refresh = element("refresh");
   refresh.replaceChildren(createElement$1(RefreshCw));
+  var install = element("install");
+  var confirmInstall = element("confirm-install");
+  var cancelInstall = element("cancel-install");
+  install.prepend(createElement$1(Download));
   var labels = { pending: "\u5F85\u529E", in_progress: "\u8FDB\u884C\u4E2D", completed: "\u5DF2\u5B8C\u6210", blocked: "\u5DF2\u963B\u585E", cancelled: "\u5DF2\u53D6\u6D88" };
   var icons = { pending: Circle, in_progress: CircleDot, completed: CircleCheck, blocked: CircleX, cancelled: Ban };
   var session = null;
@@ -1897,10 +1912,68 @@ ${GUEST_UI_LOOK_CSS}`;
   var generation = 0;
   var activeRequest = null;
   var initialized = false;
+  var companion = null;
+  var checkingCompanion = false;
+  var installing = false;
   function message(text2, error = false) {
     element("message").textContent = text2;
     element("message").hidden = !text2;
     element("message").classList.toggle("error", error);
+  }
+  function setupMessage(text2, error = false) {
+    element("companion-state").textContent = text2;
+    element("companion-state").classList.toggle("error", error);
+  }
+  async function companionStatus() {
+    if (checkingCompanion || installing) return;
+    checkingCompanion = true;
+    install.disabled = true;
+    element("install-confirm").hidden = true;
+    try {
+      const response = await host.serviceRequest({ method: "GET", path: "/companion" });
+      if (response.status !== 200) throw new Error("Status unavailable");
+      const status = JSON.parse(response.body);
+      if (!status || typeof status.path !== "string" || !["not_installed", "installed", "update_available", "conflict"].includes(status.state)) throw new Error("Invalid status");
+      companion = status;
+      install.hidden = !["not_installed", "update_available"].includes(status.state);
+      install.disabled = false;
+      element("install-label").textContent = status.state === "update_available" ? "\u66F4\u65B0\u4E0A\u62A5\u7EC4\u4EF6" : "\u5B89\u88C5\u4E0A\u62A5\u7EC4\u4EF6";
+      element("install-path").textContent = status.path;
+      const labels2 = { not_installed: "\u4E0A\u62A5\u7EC4\u4EF6\u672A\u5B89\u88C5", installed: "\u4E0A\u62A5\u7EC4\u4EF6\u5DF2\u5B89\u88C5", update_available: "\u4E0A\u62A5\u7EC4\u4EF6\u53EF\u66F4\u65B0", conflict: "\u5B89\u88C5\u76EE\u5F55\u5305\u542B\u672A\u77E5\u6587\u4EF6\uFF0C\u5DF2\u505C\u6B62\u5B89\u88C5" };
+      setupMessage(status.state === "conflict" ? `${labels2.conflict}\uFF1A${status.path}` : labels2[status.state], status.state === "conflict");
+    } catch {
+      companion = null;
+      install.hidden = true;
+      setupMessage("\u65E0\u6CD5\u68C0\u67E5\u4E0A\u62A5\u7EC4\u4EF6\uFF0C\u8BF7\u786E\u8BA4\u672C\u5730\u670D\u52A1\u5DF2\u6388\u6743\u540E\u5237\u65B0", true);
+    } finally {
+      checkingCompanion = false;
+    }
+  }
+  async function installCompanion() {
+    if (!companion || installing || element("install-confirm").hidden) return;
+    const path = companion.path;
+    installing = true;
+    install.disabled = true;
+    confirmInstall.disabled = true;
+    cancelInstall.disabled = true;
+    setupMessage("\u6B63\u5728\u5B89\u88C5\u4E0A\u62A5\u7EC4\u4EF6\u2026");
+    try {
+      const response = await host.serviceRequest({ method: "POST", path: "/companion/install", body: JSON.stringify({ confirmed: true, path }) });
+      if (response.status === 409) throw new Error("\u5B89\u88C5\u51B2\u7A81\uFF1A\u8BF7\u68C0\u67E5\u76EE\u6807\u76EE\u5F55\u6216\u7A0D\u540E\u91CD\u8BD5");
+      if (response.status !== 200) throw new Error("\u5B89\u88C5\u5931\u8D25\uFF0C\u8BF7\u786E\u8BA4\u76EE\u5F55\u5199\u5165\u6743\u9650\u540E\u91CD\u8BD5");
+      companion = { state: "installed", path };
+      install.hidden = true;
+      element("install-confirm").hidden = true;
+      setupMessage("\u4E0A\u62A5\u7EC4\u4EF6\u5DF2\u5B89\u88C5");
+      void load();
+    } catch (error) {
+      setupMessage(error instanceof Error ? error.message : "\u4E0A\u62A5\u7EC4\u4EF6\u5B89\u88C5\u5931\u8D25\uFF0C\u8BF7\u5237\u65B0\u540E\u91CD\u8BD5", true);
+    } finally {
+      installing = false;
+      install.disabled = false;
+      confirmInstall.disabled = false;
+      cancelInstall.disabled = false;
+    }
   }
   function render() {
     element("summary").hidden = !report;
@@ -1963,6 +2036,7 @@ ${GUEST_UI_LOOK_CSS}`;
   }
   host.onReady((context) => {
     applyHostReady(context, document.documentElement);
+    void companionStatus();
   });
   host.onSession((next) => {
     const changed = !initialized || next?.id !== session?.id;
@@ -1980,7 +2054,21 @@ ${GUEST_UI_LOOK_CSS}`;
     message(next ? "\u6B63\u5728\u8BFB\u53D6\u4EFB\u52A1\u2026" : "\u672A\u9009\u62E9\u4F1A\u8BDD");
     void load();
   });
-  refresh.addEventListener("click", () => void load());
+  refresh.addEventListener("click", () => {
+    void load();
+    void companionStatus();
+  });
+  install.addEventListener("click", () => {
+    if (!companion || installing || install.disabled || !["not_installed", "update_available"].includes(companion.state)) return;
+    confirmInstall.textContent = companion.state === "update_available" ? "\u786E\u8BA4\u66F4\u65B0" : "\u786E\u8BA4\u5B89\u88C5";
+    element("install-confirm").hidden = false;
+    confirmInstall.focus();
+  });
+  confirmInstall.addEventListener("click", () => void installCompanion());
+  cancelInstall.addEventListener("click", () => {
+    element("install-confirm").hidden = true;
+    install.focus();
+  });
   for (const button2 of Array.from(document.querySelectorAll("[data-filter]"))) button2.addEventListener("click", () => {
     filter = button2.dataset.filter;
     for (const item of Array.from(document.querySelectorAll("[data-filter]"))) item.setAttribute("aria-pressed", String(item === button2));
@@ -2004,6 +2092,7 @@ lucide/dist/esm/icons/circle-check.js:
 lucide/dist/esm/icons/circle-dot.js:
 lucide/dist/esm/icons/circle-x.js:
 lucide/dist/esm/icons/circle.js:
+lucide/dist/esm/icons/download.js:
 lucide/dist/esm/icons/refresh-cw.js:
 lucide/dist/esm/lucide.js:
   (**

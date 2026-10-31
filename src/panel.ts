@@ -1,12 +1,16 @@
 import { connectHost } from '@openchamber/sdk';
 import { applyHostReady } from '@openchamber/sdk/ui';
-import { createElement, RefreshCw, Circle, CircleDot, CircleCheck, CircleX, Ban } from 'lucide';
+import { createElement, RefreshCw, Download, Circle, CircleDot, CircleCheck, CircleX, Ban } from 'lucide';
 import { parseReport, progress, type Report, type Status } from './model';
 
 const host = connectHost();
 const element = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const refresh = element<HTMLButtonElement>('refresh');
 refresh.replaceChildren(createElement(RefreshCw));
+const install = element<HTMLButtonElement>('install');
+const confirmInstall = element<HTMLButtonElement>('confirm-install');
+const cancelInstall = element<HTMLButtonElement>('cancel-install');
+install.prepend(createElement(Download));
 const labels: Record<Status, string> = { pending: '待办', in_progress: '进行中', completed: '已完成', blocked: '已阻塞', cancelled: '已取消' };
 const icons = { pending: Circle, in_progress: CircleDot, completed: CircleCheck, blocked: CircleX, cancelled: Ban };
 let session: { id: string; title: string; busy: boolean } | null = null;
@@ -15,11 +19,71 @@ let filter = 'all';
 let generation = 0;
 let activeRequest: number | null = null;
 let initialized = false;
+type CompanionStatus = { state: 'not_installed' | 'installed' | 'update_available' | 'conflict'; path: string };
+let companion: CompanionStatus | null = null;
+let checkingCompanion = false;
+let installing = false;
 
 function message(text: string, error = false) {
   element('message').textContent = text;
   element('message').hidden = !text;
   element('message').classList.toggle('error', error);
+}
+
+function setupMessage(text: string, error = false) {
+  element('companion-state').textContent = text;
+  element('companion-state').classList.toggle('error', error);
+}
+
+async function companionStatus() {
+  if (checkingCompanion || installing) return;
+  checkingCompanion = true;
+  install.disabled = true;
+  element('install-confirm').hidden = true;
+  try {
+    const response = await host.serviceRequest({ method: 'GET', path: '/companion' });
+    if (response.status !== 200) throw new Error('Status unavailable');
+    const status = JSON.parse(response.body) as CompanionStatus;
+    if (!status || typeof status.path !== 'string' || !['not_installed', 'installed', 'update_available', 'conflict'].includes(status.state)) throw new Error('Invalid status');
+    companion = status;
+    install.hidden = !['not_installed', 'update_available'].includes(status.state);
+    install.disabled = false;
+    element('install-label').textContent = status.state === 'update_available' ? '更新上报组件' : '安装上报组件';
+    element('install-path').textContent = status.path;
+    const labels = { not_installed: '上报组件未安装', installed: '上报组件已安装', update_available: '上报组件可更新', conflict: '安装目录包含未知文件，已停止安装' };
+    setupMessage(status.state === 'conflict' ? `${labels.conflict}：${status.path}` : labels[status.state], status.state === 'conflict');
+  } catch {
+    companion = null;
+    install.hidden = true;
+    setupMessage('无法检查上报组件，请确认本地服务已授权后刷新', true);
+  } finally { checkingCompanion = false; }
+}
+
+async function installCompanion() {
+  if (!companion || installing || element('install-confirm').hidden) return;
+  const path = companion.path;
+  installing = true;
+  install.disabled = true;
+  confirmInstall.disabled = true;
+  cancelInstall.disabled = true;
+  setupMessage('正在安装上报组件…');
+  try {
+    const response = await host.serviceRequest({ method: 'POST', path: '/companion/install', body: JSON.stringify({ confirmed: true, path }) });
+    if (response.status === 409) throw new Error('安装冲突：请检查目标目录或稍后重试');
+    if (response.status !== 200) throw new Error('安装失败，请确认目录写入权限后重试');
+    companion = { state: 'installed', path };
+    install.hidden = true;
+    element('install-confirm').hidden = true;
+    setupMessage('上报组件已安装');
+    void load();
+  } catch (error) {
+    setupMessage(error instanceof Error ? error.message : '上报组件安装失败，请刷新后重试', true);
+  } finally {
+    installing = false;
+    install.disabled = false;
+    confirmInstall.disabled = false;
+    cancelInstall.disabled = false;
+  }
 }
 
 function render() {
@@ -82,6 +146,7 @@ async function load() {
 
 host.onReady((context) => {
   applyHostReady(context, document.documentElement);
+  void companionStatus();
 });
 host.onSession((next) => {
   const changed = !initialized || next?.id !== session?.id;
@@ -99,7 +164,15 @@ host.onSession((next) => {
   message(next ? '正在读取任务…' : '未选择会话');
   void load();
 });
-refresh.addEventListener('click', () => void load());
+refresh.addEventListener('click', () => { void load(); void companionStatus(); });
+install.addEventListener('click', () => {
+  if (!companion || installing || install.disabled || !['not_installed', 'update_available'].includes(companion.state)) return;
+  confirmInstall.textContent = companion.state === 'update_available' ? '确认更新' : '确认安装';
+  element('install-confirm').hidden = false;
+  confirmInstall.focus();
+});
+confirmInstall.addEventListener('click', () => void installCompanion());
+cancelInstall.addEventListener('click', () => { element('install-confirm').hidden = true; install.focus(); });
 for (const button of Array.from(document.querySelectorAll<HTMLButtonElement>('[data-filter]'))) button.addEventListener('click', () => {
   filter = button.dataset.filter!;
   for (const item of Array.from(document.querySelectorAll('[data-filter]'))) item.setAttribute('aria-pressed', String(item === button));

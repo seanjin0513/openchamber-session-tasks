@@ -2,6 +2,7 @@
 
 // src/service.ts
 var import_node_http = require("node:http");
+var import_node_path3 = require("node:path");
 
 // src/store.ts
 var import_node_os = require("node:os");
@@ -65,19 +66,148 @@ async function readReport(sessionId, root = storeRoot) {
   }
 }
 
+// src/installer.ts
+var import_promises2 = require("node:fs/promises");
+var import_node_os2 = require("node:os");
+var import_node_path2 = require("node:path");
+var files = ["package.json", "index.js"];
+var configRoot = process.env.XDG_CONFIG_HOME || (0, import_node_path2.join)((0, import_node_os2.homedir)(), ".config");
+var companionPath = (0, import_node_path2.join)(configRoot, "opencode", "plugins", "openchamber-session-tasks");
+async function owned(target) {
+  try {
+    if (!(await (0, import_promises2.lstat)(target)).isDirectory()) return "conflict";
+  } catch (error) {
+    if (error.code === "ENOENT") return "missing";
+    throw error;
+  }
+  try {
+    const entries = await (0, import_promises2.readdir)(target);
+    if (entries.length !== files.length || entries.some((entry) => !files.includes(entry))) return "conflict";
+    for (const file of files) if (!(await (0, import_promises2.lstat)((0, import_node_path2.join)(target, file))).isFile()) return "conflict";
+    const manifest = JSON.parse(await (0, import_promises2.readFile)((0, import_node_path2.join)(target, "package.json"), "utf8"));
+    return manifest?.name === "openchamber-session-tasks-reporter" ? "owned" : "conflict";
+  } catch {
+    return "conflict";
+  }
+}
+async function inspectCompanion(source, target = companionPath) {
+  const state = await owned(target);
+  if (state === "missing") return { state: "not_installed", path: target };
+  if (state === "conflict") return { state: "conflict", path: target };
+  for (const file of files) {
+    if (!(await (0, import_promises2.readFile)((0, import_node_path2.join)(source, file))).equals(await (0, import_promises2.readFile)((0, import_node_path2.join)(target, file)))) return { state: "update_available", path: target };
+  }
+  return { state: "installed", path: target };
+}
+async function removeFiles(directory) {
+  for (const file of files) await (0, import_promises2.unlink)((0, import_node_path2.join)(directory, file));
+  await (0, import_promises2.rmdir)(directory);
+}
+async function installCompanion(source, target = companionPath) {
+  await (0, import_promises2.mkdir)((0, import_node_path2.dirname)(target), { recursive: true, mode: 448 });
+  const lockPath = (0, import_node_path2.join)((0, import_node_path2.dirname)((0, import_node_path2.dirname)(target)), ".session-tasks-install.lock");
+  const lock = await (0, import_promises2.open)(lockPath, "wx", 384);
+  let staging;
+  let previous;
+  let committed = false;
+  try {
+    const status = await inspectCompanion(source, target);
+    if (status.state === "conflict") throw new Error("COMPANION_CONFLICT: Target contains extra files or an unrecognized plugin");
+    if (status.state === "installed") return status;
+    staging = await (0, import_promises2.mkdtemp)((0, import_node_path2.join)((0, import_node_path2.dirname)((0, import_node_path2.dirname)(target)), ".session-tasks-install-"));
+    const next = (0, import_node_path2.join)(staging, "next");
+    await (0, import_promises2.mkdir)(next, { mode: 448 });
+    for (const file of files) await (0, import_promises2.writeFile)((0, import_node_path2.join)(next, file), await (0, import_promises2.readFile)((0, import_node_path2.join)(source, file)), { mode: 384, flag: "wx" });
+    if (await owned(next) !== "owned") throw new Error("Invalid bundled reporter");
+    if (status.state === "update_available") {
+      previous = (0, import_node_path2.join)(staging, "previous");
+      await (0, import_promises2.rename)(target, previous);
+    }
+    try {
+      await (0, import_promises2.rename)(next, target);
+    } catch (error) {
+      if (previous) {
+        try {
+          await (0, import_promises2.rename)(previous, target);
+          previous = void 0;
+        } catch {
+          throw new Error(`Installation failed; previous reporter preserved at ${previous}`);
+        }
+      }
+      throw error;
+    }
+    committed = true;
+    return { state: "installed", path: target };
+  } finally {
+    try {
+      if (staging) {
+        const next = (0, import_node_path2.join)(staging, "next");
+        for (const file of files) await (0, import_promises2.unlink)((0, import_node_path2.join)(next, file)).catch((error) => {
+          if (error.code !== "ENOENT") throw error;
+        });
+        await (0, import_promises2.rmdir)(next).catch((error) => {
+          if (error.code !== "ENOENT") throw error;
+        });
+        if (previous && committed) {
+          await removeFiles(previous);
+          previous = void 0;
+        }
+        if (!previous) await (0, import_promises2.rmdir)(staging);
+      }
+    } finally {
+      await lock.close();
+      await (0, import_promises2.unlink)(lockPath);
+    }
+  }
+}
+
 // src/service.ts
 var port = Number(process.env.OPENCHAMBER_SERVICE_PORT);
 var token = process.env.OPENCHAMBER_SERVICE_TOKEN;
 if (!Number.isInteger(port) || port < 1 || port > 65535 || !token) throw new Error("OpenChamber service environment is missing");
+var companionSource = (0, import_node_path3.join)(__dirname, "..", "companion");
 var server = (0, import_node_http.createServer)(async (request, response) => {
   const send = (status, body) => {
     response.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
     response.end(JSON.stringify(body));
   };
   if (request.headers.authorization !== `Bearer ${token}`) return send(401, { error: "Unauthorized" });
-  if (request.method !== "GET") return send(405, { error: "Read-only service" });
   const url = new URL(request.url ?? "/", "http://127.0.0.1");
-  if (url.pathname === "/health") return send(200, { ok: true });
+  if (url.pathname === "/health" && request.method === "GET") return send(200, { ok: true });
+  if (url.pathname === "/companion") {
+    if (request.method !== "GET") return send(405, { error: "Use POST /companion/install to install" });
+    try {
+      return send(200, await inspectCompanion(companionSource));
+    } catch {
+      return send(500, { error: "Reporter status could not be read" });
+    }
+  }
+  if (url.pathname === "/companion/install") {
+    if (request.method !== "POST") return send(405, { error: "Use POST to install" });
+    let input;
+    try {
+      const chunks = [];
+      let size = 0;
+      for await (const chunk of request) {
+        size += chunk.length;
+        if (size > 4e3) return send(413, { error: "Request too large" });
+        chunks.push(chunk);
+      }
+      input = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    } catch {
+      return send(400, { error: "Invalid JSON" });
+    }
+    if (!input || typeof input !== "object" || Array.isArray(input) || Object.keys(input).some((key) => !["confirmed", "path"].includes(key)) || input.confirmed !== true || input.path !== companionPath) return send(400, { error: "Confirmation and exact install path are required" });
+    try {
+      const result = await installCompanion(companionSource);
+      return send(200, result);
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith("COMPANION_CONFLICT")) return send(409, { error: "Target contains files not owned by this extension" });
+      if (error.code === "EEXIST") return send(409, { error: "Installation already in progress" });
+      return send(500, { error: "Reporter installation failed" });
+    }
+  }
+  if (request.method !== "GET") return send(405, { error: "Method not allowed" });
   if (url.pathname !== "/tasks") return send(404, { error: "Not found" });
   const sessionId = url.searchParams.get("sessionId");
   if (!sessionId || !/^[a-zA-Z0-9_-]{1,96}$/.test(sessionId)) return send(400, { error: "Invalid session ID" });

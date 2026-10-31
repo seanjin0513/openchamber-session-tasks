@@ -12,6 +12,16 @@ button:hover { background: var(--oc-hover); }
 button:focus-visible { outline: 2px solid var(--oc-focus, var(--oc-primary)); outline-offset: 2px; }
 button:disabled { opacity: .5; cursor: wait; }
 #refresh { display: grid; place-items: center; width: 30px; height: 30px; flex: 0 0 30px; }
+.install { padding: 5px 8px; color: var(--oc-primary-text, var(--oc-primary)); font-size: .786rem; }
+#setup { padding: 0 0 12px; margin-bottom: 14px; border-bottom: 1px solid var(--oc-border); }
+.setup-line { display: flex; align-items: center; gap: 8px; justify-content: space-between; flex-wrap: wrap; }
+.install, #confirm-install { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+#install-confirm p { margin: 10px 0 6px; font-size: .857rem; }
+#install-path { display: block; font-size: .786rem; overflow-wrap: anywhere; white-space: pre-wrap; }
+.confirm-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.confirm-actions button { min-height: 30px; padding: 4px 10px; font-size: .857rem; }
+#confirm-install { background: var(--oc-primary); color: var(--oc-primary-fg, white); }
+#companion-state.error { color: var(--oc-error-text); }
 svg { width: 16px; height: 16px; flex-shrink: 0; }
 .session { margin: 4px 0 18px; overflow-wrap: anywhere; }
 .totals { align-items: start; font-size: .857rem; }

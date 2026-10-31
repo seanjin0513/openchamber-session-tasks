@@ -12,17 +12,20 @@ const bundle = await build({
     builder.onLoad({ filter: /.*/, namespace: 'mock' }, ({ path }) => ({ contents:
       path === '@openchamber/sdk' ? 'export const connectHost = () => globalThis.testHost;' :
       path === '@openchamber/sdk/ui' ? 'export const applyHostReady = () => {};' :
-      'export const createElement = () => document.createElement("svg"); export const RefreshCw=0, Circle=0, CircleDot=0, CircleCheck=0, CircleX=0, Ban=0;'
+      'export const createElement = () => document.createElement("svg"); export const Download=0, RefreshCw=0, Circle=0, CircleDot=0, CircleCheck=0, CircleX=0, Ban=0;'
     }));
   } }],
 });
 
-function panel(serviceRequest) {
+function panel(serviceRequest, setupRequest = async () => setupResponse('installed')) {
   const nodes = new Map();
   const node = () => ({
     textContent: '', hidden: false, disabled: false, style: {}, children: [], attributes: {},
-    classList: { toggle() {} }, addEventListener() {},
+    classList: { toggle() {} }, events: {}, focus() {},
+    addEventListener(name, handler) { this.events[name] = handler; },
+    click() { if (!this.disabled && !this.hidden) this.events.click?.(); },
     replaceChildren(...children) { this.children = children; },
+    prepend(...children) { this.children.unshift(...children); },
     append(...children) { this.children.push(...children); },
     setAttribute(key, value) { this.attributes[key] = value; },
   });
@@ -30,7 +33,7 @@ function panel(serviceRequest) {
   const handlers = {};
   let poll;
   const testHost = {
-    serviceRequest, dispose() {},
+    serviceRequest: (request) => request.path.startsWith('/companion') ? setupRequest(request) : serviceRequest(request), dispose() {},
     onReady(callback) { handlers.ready = callback; },
     onSession(callback) { handlers.session = callback; },
     onConnection(callback) { handlers.connection = callback; },
@@ -46,6 +49,8 @@ function panel(serviceRequest) {
 }
 
 const tick = () => new Promise((resolve) => setImmediate(resolve));
+const installPath = '/home/example/.config/opencode/plugins/openchamber-session-tasks';
+const setupResponse = (state) => ({ status: 200, body: JSON.stringify({ state, path: installPath }) });
 const session = (id) => ({ id, title: id, busy: false });
 const response = (id) => ({ status: 200, body: JSON.stringify({ report: {
   version: 1, sessionId: id, revision: 1, title: id, updatedAt: new Date().toISOString(),
@@ -89,4 +94,65 @@ test('late reports cannot replace the newly selected session', async () => {
   ui.handlers.session(null);
   assert.equal(ui.get('message').textContent, '未选择会话');
   assert.equal(ui.get('tasks').children.length, 0);
+});
+
+test('installation requires a separate confirmation click and works without a session', async () => {
+  const calls = [];
+  let resolveInstall;
+  const ui = panel(async () => ({ status: 200, body: '{"report":null}' }), async (request) => {
+    calls.push(request);
+    if (request.method === 'POST') return new Promise((resolve) => { resolveInstall = resolve; });
+    return setupResponse('not_installed');
+  });
+  await tick();
+  assert.equal(ui.get('install').hidden, false);
+  assert.equal(calls.length, 1);
+  ui.get('install').click();
+  assert.equal(ui.get('install-confirm').hidden, false);
+  assert.equal(ui.get('install-path').textContent, installPath);
+  assert.equal(calls.length, 1);
+  ui.get('cancel-install').click();
+  assert.equal(ui.get('install-confirm').hidden, true);
+  ui.get('confirm-install').click();
+  assert.equal(calls.length, 1);
+  ui.get('install').click();
+  ui.get('confirm-install').click();
+  ui.get('confirm-install').click();
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].method, 'POST');
+  assert.deepEqual(JSON.parse(calls[1].body), { confirmed: true, path: installPath });
+  assert.equal(ui.get('confirm-install').disabled, true);
+  resolveInstall(setupResponse('installed')); await tick();
+  assert.equal(ui.get('install').hidden, true);
+  assert.equal(ui.get('install-confirm').hidden, true);
+  assert.equal(ui.get('companion-state').textContent, '上报组件已安装');
+});
+
+test('update, conflict, permission failure and retry have explicit setup states', async () => {
+  let state = 'update_available';
+  let available = true;
+  let failInstall = true;
+  const ui = panel(async () => response('ses_local'), async (request) => {
+    if (!available) throw new Error('Service disabled');
+    if (request.method === 'POST') return failInstall ? { status: 500, body: '{}' } : setupResponse('installed');
+    return setupResponse(state);
+  });
+  await tick();
+  assert.equal(ui.get('install-label').textContent, '更新上报组件');
+  ui.get('install').click(); ui.get('confirm-install').click(); await tick();
+  assert.match(ui.get('companion-state').textContent, /安装失败/);
+  assert.equal(ui.get('confirm-install').disabled, false);
+  failInstall = false;
+  ui.get('confirm-install').click(); await tick();
+  assert.equal(ui.get('companion-state').textContent, '上报组件已安装');
+  state = 'conflict';
+  ui.get('refresh').click(); await tick();
+  assert.equal(ui.get('install').hidden, true);
+  assert.match(ui.get('companion-state').textContent, /未知文件/);
+  available = false;
+  ui.get('refresh').click(); await tick();
+  assert.match(ui.get('companion-state').textContent, /授权/);
+  available = true; state = 'not_installed';
+  ui.get('refresh').click(); await tick();
+  assert.equal(ui.get('install').hidden, false);
 });
