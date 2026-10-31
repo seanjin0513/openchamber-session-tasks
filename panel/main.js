@@ -1935,6 +1935,7 @@ ${GUEST_UI_LOOK_CSS}`;
   }
   function setupMessage(text2, error = false) {
     element("companion-state").textContent = text2;
+    element("companion-state").title = text2;
     element("companion-state").classList.toggle("error", error);
   }
   async function companionStatus() {
@@ -2057,6 +2058,7 @@ ${GUEST_UI_LOOK_CSS}`;
     initialized = true;
     session = next;
     element("session").textContent = next?.title ?? "\u672A\u9009\u62E9\u4F1A\u8BDD";
+    element("session").title = next?.title ?? "\u672A\u9009\u62E9\u4F1A\u8BDD";
     element("activity").textContent = next ? next.busy ? "Agent \u8FD0\u884C\u4E2D" : "Agent \u7A7A\u95F2" : "";
     if (!changed) return;
     generation++;

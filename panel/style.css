@@ -2,10 +2,12 @@
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--oc-bg); color: var(--oc-fg); font: .875rem/1.5 var(--oc-font); letter-spacing: 0; }
 main { padding: 14px; min-width: 0; }
-header, .heading, .totals, footer { display: flex; align-items: center; gap: 8px; }
+header, .totals, footer { display: flex; align-items: center; gap: 8px; }
 header, .totals, footer { justify-content: space-between; }
-.heading { min-width: 0; flex-wrap: wrap; }
-h1 { font-size: 1rem; font-weight: 600; margin: 0; }
+header { flex-wrap: nowrap; margin-bottom: 10px; }
+#activity { flex-shrink: 0; white-space: nowrap; }
+#companion-state { min-width: 0; max-width: 45%; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+h1 { font-size: 1rem; font-weight: 600; margin: 0 0 4px; }
 .muted { color: var(--oc-muted); font-size: .786rem; }
 button { font: inherit; color: inherit; cursor: pointer; background: transparent; border: 0; border-radius: 4px; }
 button:hover { background: var(--oc-hover); }
@@ -14,7 +16,7 @@ button:disabled { opacity: .5; cursor: wait; }
 #refresh { display: grid; place-items: center; width: 30px; height: 30px; flex: 0 0 30px; }
 .install { padding: 5px 8px; color: var(--oc-primary-text, var(--oc-primary)); font-size: .786rem; }
 #setup { padding: 0 0 12px; margin-bottom: 14px; border-bottom: 1px solid var(--oc-border); }
-.setup-line { display: flex; align-items: center; gap: 8px; justify-content: space-between; flex-wrap: wrap; }
+#setup:has(#install[hidden]):has(#install-confirm[hidden]) { display: none; }
 .install, #confirm-install { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 #install-confirm p { margin: 10px 0 6px; font-size: .857rem; }
 #install-path { display: block; font-size: .786rem; overflow-wrap: anywhere; white-space: pre-wrap; }
@@ -23,7 +25,7 @@ button:disabled { opacity: .5; cursor: wait; }
 #confirm-install { background: var(--oc-primary); color: var(--oc-primary-fg, white); }
 #companion-state.error { color: var(--oc-error-text); }
 svg { width: 16px; height: 16px; flex-shrink: 0; }
-.session { margin: 4px 0 18px; overflow-wrap: anywhere; }
+.session { flex: 1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .totals { align-items: start; font-size: .857rem; }
 #title { min-width: 0; overflow-wrap: anywhere; font-weight: 500; }
 #count { flex-shrink: 0; color: var(--oc-muted); font-variant-numeric: tabular-nums; }
@@ -51,5 +53,4 @@ footer { margin-top: 14px; align-items: start; flex-wrap: wrap; gap: 4px 12px; }
 [hidden] { display: none !important; }
 html[data-oc-surface="status"] main { padding: 8px 0; }
 html[data-oc-surface="status"] h1 { display: none; }
-html[data-oc-surface="status"] .session { margin-bottom: 10px; }
 @media (max-width: 270px) { main { padding: 10px; } .task { grid-template-columns: 18px minmax(0,1fr); } .state { grid-column: 2; } .totals { flex-wrap: wrap; } }

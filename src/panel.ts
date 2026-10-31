@@ -43,6 +43,7 @@ function message(text: string, error = false) {
 
 function setupMessage(text: string, error = false) {
   element('companion-state').textContent = text;
+  element('companion-state').title = text;
   element('companion-state').classList.toggle('error', error);
 }
 
@@ -165,6 +166,7 @@ host.onSession((next) => {
   initialized = true;
   session = next;
   element('session').textContent = next?.title ?? '未选择会话';
+  element('session').title = next?.title ?? '未选择会话';
   element('activity').textContent = next ? next.busy ? 'Agent 运行中' : 'Agent 空闲' : '';
   if (!changed) return;
   generation++;
