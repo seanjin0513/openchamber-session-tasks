@@ -1,0 +1,37 @@
+{
+  "name": "openchamber-session-tasks",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "description": "OpenChamber 当前会话任务进度",
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc --noEmit",
+    "pretest": "npm run build",
+    "test": "node --test test/*.test.mjs",
+    "preview": "node dev/preview.mjs",
+    "companion": "node scripts/companion.mjs"
+  },
+  "devDependencies": {
+    "@openchamber/sdk": "2.5.3",
+    "@opencode/plugin": "2.2.5",
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.28.2",
+    "lucide": "^0.468.0",
+    "typescript": "^5.9.3"
+  },
+  "openchamber": {
+    "apiVersion": 1,
+    "engines": { "openchamber": ">=2.5.3" },
+    "contributes": {
+      "panel": {
+        "id": "session-tasks",
+        "name": "会话任务",
+        "icon": "icon.svg",
+        "entry": "panel/index.html"
+      },
+      "service": { "entry": "service/main.cjs", "runtime": "host", "permissions": {} },
+      "attach": false
+    }
+  }
+}

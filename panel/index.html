@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+  <title>会话任务</title>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="heading"><h1>会话任务</h1><span id="activity" class="muted"></span></div>
+      <button id="refresh" title="刷新任务" aria-label="刷新任务"><i data-lucide="refresh-cw"></i></button>
+    </header>
+    <p id="session" class="session muted"></p>
+    <section id="summary" hidden>
+      <div class="totals"><strong id="title"></strong><span id="count"></span></div>
+      <div id="progress" role="progressbar" aria-label="任务完成度" aria-valuemin="0" aria-valuemax="100"><div id="bar"></div></div>
+      <div id="filters" role="group" aria-label="任务筛选"><button data-filter="all" aria-pressed="true">全部</button><button data-filter="open" aria-pressed="false">未完成</button><button data-filter="completed" aria-pressed="false">已完成</button></div>
+    </section>
+    <p id="message" role="status">正在连接会话…</p>
+    <ul id="tasks" aria-label="会话任务清单"></ul>
+    <footer><span id="updated" class="muted"></span><span id="source" class="muted"></span></footer>
+  </main>
+  <script src="main.js"></script>
+</body>
+</html>
