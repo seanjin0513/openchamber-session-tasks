@@ -1896,7 +1896,6 @@ ${GUEST_UI_LOOK_CSS}`;
   var filter = "all";
   var generation = 0;
   var activeRequest = null;
-  var connected = true;
   var initialized = false;
   function message(text2, error = false) {
     element("message").textContent = text2;
@@ -1940,21 +1939,21 @@ ${GUEST_UI_LOOK_CSS}`;
     message(shown.length ? "" : report.tasks.length ? "\u6CA1\u6709\u7B26\u5408\u7B5B\u9009\u7684\u4EFB\u52A1" : "\u4EFB\u52A1\u6E05\u5355\u4E3A\u7A7A");
   }
   async function load() {
-    if (!session || !connected || activeRequest === generation || document.hidden) return;
+    if (!session || activeRequest === generation || document.hidden) return;
     const current = generation;
     const id = session.id;
     activeRequest = current;
     refresh.disabled = true;
     try {
       const response = await host.serviceRequest({ method: "GET", path: "/tasks", query: { sessionId: id } });
-      if (current !== generation || !connected) return;
+      if (current !== generation) return;
       if (response.status !== 200) throw new Error("Service unavailable");
       const data = JSON.parse(response.body);
       report = data.report === null ? null : parseReport(data.report, id);
       render();
       if (!report) message("\u5F53\u524D\u4F1A\u8BDD\u5C1A\u672A\u4E0A\u62A5\u4EFB\u52A1");
     } catch {
-      if (current === generation && connected) message(report ? "\u5237\u65B0\u5931\u8D25\uFF0C\u5F53\u524D\u663E\u793A\u4E0A\u6B21\u4E0A\u62A5" : "\u65E0\u6CD5\u8BFB\u53D6\u4EFB\u52A1\uFF0C\u8BF7\u68C0\u67E5\u6269\u5C55\u670D\u52A1\u6743\u9650\u548C\u4E0A\u62A5\u7EC4\u4EF6", true);
+      if (current === generation) message(report ? "\u5237\u65B0\u5931\u8D25\uFF0C\u5F53\u524D\u663E\u793A\u4E0A\u6B21\u4E0A\u62A5" : "\u65E0\u6CD5\u8BFB\u53D6\u4EFB\u52A1\uFF0C\u8BF7\u68C0\u67E5\u6269\u5C55\u672C\u5730\u670D\u52A1\u662F\u5426\u5DF2\u542F\u7528\u5E76\u6388\u6743", true);
     } finally {
       if (activeRequest === current) {
         activeRequest = null;
@@ -1964,7 +1963,6 @@ ${GUEST_UI_LOOK_CSS}`;
   }
   host.onReady((context) => {
     applyHostReady(context, document.documentElement);
-    connected = context.connection.connected;
   });
   host.onSession((next) => {
     const changed = !initialized || next?.id !== session?.id;
@@ -1981,11 +1979,6 @@ ${GUEST_UI_LOOK_CSS}`;
     render();
     message(next ? "\u6B63\u5728\u8BFB\u53D6\u4EFB\u52A1\u2026" : "\u672A\u9009\u62E9\u4F1A\u8BDD");
     void load();
-  });
-  host.onConnection((connection) => {
-    connected = connection.connected;
-    if (!connected) message("OpenCode \u8FDE\u63A5\u5DF2\u65AD\u5F00\uFF0C\u4EFB\u52A1\u72B6\u6001\u672A\u66F4\u65B0", true);
-    else void load();
   });
   refresh.addEventListener("click", () => void load());
   for (const button2 of Array.from(document.querySelectorAll("[data-filter]"))) button2.addEventListener("click", () => {

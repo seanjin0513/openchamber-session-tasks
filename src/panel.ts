@@ -14,7 +14,6 @@ let report: Report | null = null;
 let filter = 'all';
 let generation = 0;
 let activeRequest: number | null = null;
-let connected = true;
 let initialized = false;
 
 function message(text: string, error = false) {
@@ -61,21 +60,21 @@ function render() {
 }
 
 async function load() {
-  if (!session || !connected || activeRequest === generation || document.hidden) return;
+  if (!session || activeRequest === generation || document.hidden) return;
   const current = generation;
   const id = session.id;
   activeRequest = current;
   refresh.disabled = true;
   try {
     const response = await host.serviceRequest({ method: 'GET', path: '/tasks', query: { sessionId: id } });
-    if (current !== generation || !connected) return;
+    if (current !== generation) return;
     if (response.status !== 200) throw new Error('Service unavailable');
     const data = JSON.parse(response.body) as { report: unknown };
     report = data.report === null ? null : parseReport(data.report, id);
     render();
     if (!report) message('当前会话尚未上报任务');
   } catch {
-    if (current === generation && connected) message(report ? '刷新失败，当前显示上次上报' : '无法读取任务，请检查扩展服务权限和上报组件', true);
+    if (current === generation) message(report ? '刷新失败，当前显示上次上报' : '无法读取任务，请检查扩展本地服务是否已启用并授权', true);
   } finally {
     if (activeRequest === current) { activeRequest = null; refresh.disabled = false; }
   }
@@ -83,7 +82,6 @@ async function load() {
 
 host.onReady((context) => {
   applyHostReady(context, document.documentElement);
-  connected = context.connection.connected;
 });
 host.onSession((next) => {
   const changed = !initialized || next?.id !== session?.id;
@@ -100,11 +98,6 @@ host.onSession((next) => {
   render();
   message(next ? '正在读取任务…' : '未选择会话');
   void load();
-});
-host.onConnection((connection) => {
-  connected = connection.connected;
-  if (!connected) message('OpenCode 连接已断开，任务状态未更新', true);
-  else void load();
 });
 refresh.addEventListener('click', () => void load());
 for (const button of Array.from(document.querySelectorAll<HTMLButtonElement>('[data-filter]'))) button.addEventListener('click', () => {

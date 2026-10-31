@@ -8,10 +8,10 @@ OpenChamber 2.5.3+ 的当前会话任务面板，配套 OpenCode V2 上报工具
 
 1. 在此目录执行 `npm ci && npm run build`（发布包已包含构建产物，可跳过）。
 2. OpenChamber 扩展设置中添加本目录，启用扩展并允许本地服务。
-3. 在此目录执行 `node scripts/companion.mjs install`，安装 OpenCode 上报组件。
-4. 在 OpenChamber 扩展面板中打开「会话任务」。多步骤任务开始后，Agent 会收到上报提示。
+3. 在**扩展目录**执行 `node scripts/companion.mjs install`，安装 OpenCode 上报组件。
+4. 在 OpenChamber 扩展面板中打开「会话任务」。多步骤任务开始后，Agent 会收到上报提示。工具未出现时可执行 `/reload` 强制重载 OpenCode 配置。
 
-安装脚本仅写入 `$XDG_CONFIG_HOME/opencode/plugins/openchamber-session-tasks`，未设置 XDG 时使用 `~/.config/opencode/plugins/openchamber-session-tasks`。不修改现有配置、AGENTS.md 或其他插件。OpenCode V2 自动监测插件；已在执行的模型请求可能到下一步才看到新工具。
+安装脚本仅写入 `$XDG_CONFIG_HOME/opencode/plugins/openchamber-session-tasks`，未设置 XDG 时使用 `~/.config/opencode/plugins/openchamber-session-tasks`。不修改现有配置、AGENTS.md 或其他插件。OpenCode V2 自动监测插件；已在执行的模型请求可能到下一步才看到新工具。SDK 的 `connection.connected` 表示扩展第三方集成账号的连接状态，不是 OpenCode 或本地服务的连接状态；本扩展无需该集成，不使用它阻止任务读取。未上报时先确认上报组件已安装；读取失败时检查扩展服务授权。
 
 ## 数据与权限
 
@@ -31,6 +31,6 @@ OpenChamber 2.5.3+ 的当前会话任务面板，配套 OpenCode V2 上报工具
 
 ## 开发与验证
 
-`npm run typecheck`、`npm test`（自动先构建）。7 项测试覆盖 manifest、隔离安装/卸载、模拟工具执行与真实 HTTP 服务、版本冲突、会话隔离、损坏文件和并发写入。测试使用临时目录，不更改真实 OpenCode 配置。
+`npm run typecheck`、`npm test`（自动先构建）。测试覆盖 manifest、隔离安装/卸载、模拟工具执行与真实 HTTP 服务、版本冲突、会话隔离、损坏文件、并发写入，以及无集成账号时面板仍读取本地服务的回归场景。测试使用临时目录，不更改真实 OpenCode 配置。
 
 `npm run preview` 提供独立演示页，默认 http://127.0.0.1:4187，可用 `PORT` 指定端口。演示数据不写入真实任务目录，不包含在扩展入口中。已人工检查浅色桌面、深色 360px 窄屏、筛选、长文本、空会话、服务异常、断线和快速会话切换。真实 OpenChamber 安装及模型是否主动调用工具仍需启用后联调。
