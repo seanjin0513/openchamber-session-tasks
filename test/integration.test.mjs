@@ -13,8 +13,12 @@ import { parseManifestJson } from '@openchamber/sdk/schemas';
 const run = promisify(execFile);
 
 test('manifest is accepted by the OpenChamber SDK', async () => {
-  const result = parseManifestJson(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+  const json = await readFile(new URL('../package.json', import.meta.url), 'utf8');
+  const result = parseManifestJson(json);
   assert.equal(result.ok, true, JSON.stringify(result));
+  const section = JSON.parse(json).openchamber.contributes.statusSection;
+  assert.equal(section.entry, 'panel/index.html');
+  assert.equal(section.defaultExpanded, true);
 });
 
 test('companion installer preserves config and refuses unknown files', async () => {

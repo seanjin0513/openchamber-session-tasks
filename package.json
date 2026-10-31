@@ -1,6 +1,6 @@
 {
   "name": "openchamber-session-tasks",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": false,
   "type": "module",
   "description": "OpenChamber 当前会话任务进度",
@@ -29,6 +29,12 @@
         "name": "会话任务",
         "icon": "icon.svg",
         "entry": "panel/index.html"
+      },
+      "statusSection": {
+        "entry": "panel/index.html",
+        "title": "会话任务",
+        "height": 240,
+        "defaultExpanded": true
       },
       "service": { "entry": "service/main.cjs", "runtime": "host", "permissions": {} },
       "attach": false

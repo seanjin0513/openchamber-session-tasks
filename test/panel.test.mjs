@@ -17,7 +17,7 @@ const bundle = await build({
   } }],
 });
 
-function panel(serviceRequest, setupRequest = async () => setupResponse('installed')) {
+function panel(serviceRequest, setupRequest = async () => setupResponse('installed'), surface = 'panel') {
   const nodes = new Map();
   const node = () => ({
     textContent: '', hidden: false, disabled: false, style: {}, children: [], attributes: {},
@@ -31,8 +31,12 @@ function panel(serviceRequest, setupRequest = async () => setupResponse('install
   });
   const get = (id) => { if (!nodes.has(id)) nodes.set(id, node()); return nodes.get(id); };
   const handlers = {};
+  let resize;
+  let contentHeight = 100;
+  const heights = [];
   let poll;
   const testHost = {
+    setHeight: async (height) => { heights.push(height); },
     serviceRequest: (request) => request.path.startsWith('/companion') ? setupRequest(request) : serviceRequest(request), dispose() {},
     onReady(callback) { handlers.ready = callback; },
     onSession(callback) { handlers.session = callback; },
@@ -40,12 +44,13 @@ function panel(serviceRequest, setupRequest = async () => setupResponse('install
   };
   runInNewContext(bundle.outputFiles[0].text, {
     testHost,
-    document: { hidden: false, documentElement: node(), getElementById: get, querySelectorAll: () => [], createElement: node, addEventListener() {} },
+    document: { hidden: false, documentElement: node(), getElementById: get, querySelector: () => ({ getBoundingClientRect: () => ({ height: contentHeight }) }), querySelectorAll: () => [], createElement: node, addEventListener() {} },
+    ResizeObserver: class { constructor(callback) { resize = callback; } observe() {} disconnect() {} },
     window: { addEventListener() {} },
     setInterval(callback) { poll = callback; return 1; }, clearInterval() {},
   });
-  handlers.ready({ connection: { connected: false, account: '' } });
-  return { get, handlers, poll: () => poll() };
+  handlers.ready({ surface, connection: { connected: false, account: '' } });
+  return { get, handlers, poll: () => poll(), heights, resize(height) { contentHeight = height; resize(); } };
 }
 
 const tick = () => new Promise((resolve) => setImmediate(resolve));
@@ -155,4 +160,17 @@ test('update, conflict, permission failure and retry have explicit setup states'
   available = true; state = 'not_installed';
   ui.get('refresh').click(); await tick();
   assert.equal(ui.get('install').hidden, false);
+});
+
+test('work status height follows content, caps at 320 and shrinks after collapse', () => {
+  const ui = panel(async () => response('ses_local'), undefined, 'status');
+  ui.resize(180.2);
+  ui.resize(180.2);
+  ui.resize(700);
+  ui.resize(900);
+  ui.resize(90);
+  assert.deepEqual(ui.heights, [181, 320, 90]);
+  const rail = panel(async () => response('ses_local'));
+  rail.resize(200);
+  assert.deepEqual(rail.heights, []);
 });

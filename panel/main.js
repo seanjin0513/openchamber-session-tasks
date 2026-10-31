@@ -1915,6 +1915,19 @@ ${GUEST_UI_LOOK_CSS}`;
   var companion = null;
   var checkingCompanion = false;
   var installing = false;
+  var statusSurface = false;
+  var lastHeight = 0;
+  var main = document.querySelector("main");
+  var resizeObserver = new ResizeObserver(() => {
+    if (!statusSurface) return;
+    const height = Math.max(24, Math.min(320, Math.ceil(main.getBoundingClientRect().height)));
+    if (height === lastHeight) return;
+    lastHeight = height;
+    void host.setHeight(height).catch(() => {
+      lastHeight = 0;
+    });
+  });
+  resizeObserver.observe(main);
   function message(text2, error = false) {
     element("message").textContent = text2;
     element("message").hidden = !text2;
@@ -2036,6 +2049,7 @@ ${GUEST_UI_LOOK_CSS}`;
   }
   host.onReady((context) => {
     applyHostReady(context, document.documentElement);
+    statusSurface = context.surface === "status";
     void companionStatus();
   });
   host.onSession((next) => {
@@ -2080,6 +2094,7 @@ ${GUEST_UI_LOOK_CSS}`;
   var timer = setInterval(() => void load(), 2e3);
   window.addEventListener("pagehide", () => {
     clearInterval(timer);
+    resizeObserver.disconnect();
     host.dispose();
   });
 })();

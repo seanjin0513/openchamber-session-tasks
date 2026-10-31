@@ -23,6 +23,17 @@ type CompanionStatus = { state: 'not_installed' | 'installed' | 'update_availabl
 let companion: CompanionStatus | null = null;
 let checkingCompanion = false;
 let installing = false;
+let statusSurface = false;
+let lastHeight = 0;
+const main = document.querySelector('main')!;
+const resizeObserver = new ResizeObserver(() => {
+  if (!statusSurface) return;
+  const height = Math.max(24, Math.min(320, Math.ceil(main.getBoundingClientRect().height)));
+  if (height === lastHeight) return;
+  lastHeight = height;
+  void host.setHeight(height).catch(() => { lastHeight = 0; });
+});
+resizeObserver.observe(main);
 
 function message(text: string, error = false) {
   element('message').textContent = text;
@@ -146,6 +157,7 @@ async function load() {
 
 host.onReady((context) => {
   applyHostReady(context, document.documentElement);
+  statusSurface = context.surface === 'status';
   void companionStatus();
 });
 host.onSession((next) => {
@@ -180,4 +192,4 @@ for (const button of Array.from(document.querySelectorAll<HTMLButtonElement>('[d
 });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) void load(); });
 const timer = setInterval(() => void load(), 2000);
-window.addEventListener('pagehide', () => { clearInterval(timer); host.dispose(); });
+window.addEventListener('pagehide', () => { clearInterval(timer); resizeObserver.disconnect(); host.dispose(); });
